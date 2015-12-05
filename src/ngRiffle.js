@@ -7,15 +7,17 @@ if (typeof module !== "undefined" && typeof exports !== "undefined" && module.ex
 (function () {
     'use strict';
 
-    jsRiffle.setDevFabric();
+    //jsRiffle.setDevFabric();
 
     var ngRiffleModule = angular.module('ngRiffle', []).provider('$riffle', $RiffleProvider);
 
     function $RiffleProvider() {
         var options;
+        var domain;
 
-        this.init = function (initOptions) {
+        this.init = function (name, initOptions) {
             options = initOptions || {};
+            domain = name;
         };
 
 
@@ -26,6 +28,30 @@ if (typeof module !== "undefined" && typeof exports !== "undefined" && module.ex
             var connection;
             var sessionDeferred = $q.defer();
             var sessionPromise = sessionDeferred.promise;
+
+            /**
+             * @param session
+             * @param method
+             * @param extra
+             * @returns {*}
+             *
+             * @description
+             * Gets called when a Challenge Message is sent by the router
+             */
+            var onchallenge = function (session, method, extra) {
+
+                var onChallengeDeferred = $q.defer();
+
+                $rootScope.$broadcast("$wamp.onchallenge", {
+                    promise: onChallengeDeferred,
+                    session: session,
+                    method: method,
+                    extra: extra
+                });
+
+                return onChallengeDeferred.promise;
+            };
+
 
             /**
              * Interceptors stored in reverse order. Inner interceptors before outer interceptors.
@@ -46,9 +72,9 @@ if (typeof module !== "undefined" && typeof exports !== "undefined" && module.ex
              */
             function digestWrapper(func) {
 
-                // if (options.disable_digest && options.disable_digest === true) {
-                //     return func;
-                // }
+                if (options.disable_digest && options.disable_digest === true) {
+                    return func;
+                }
 
                 return function () {
                     var cb = func.apply(this, arguments);
@@ -57,11 +83,12 @@ if (typeof module !== "undefined" && typeof exports !== "undefined" && module.ex
                 };
             }
 
-            // options = angular.extend({onchallenge: digestWrapper(onchallenge), use_deferred: $q.defer}, options);
+            options = angular.extend({onchallenge: digestWrapper(onchallenge), use_deferred: $q.defer}, options);
 
-            connection = new jsRiffle.Domain(options);
+            connection = new jsRiffle.Domain(domain, options);
 
             connection.onJoin = digestWrapper(function () {
+                $log.debug("Connection Opened Welcome to Exis!");
                 $rootScope.$broadcast("$riffle.open");
                 sessionDeferred.resolve();
             });
